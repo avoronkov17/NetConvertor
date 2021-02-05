@@ -10,12 +10,16 @@ NetConvertor::NetConvertor(QObject *parent) : QObject(parent)
 
 qint32 NetConvertor::init(QString confFile) noexcept
 {
-    if ( m_nano->init(Settings::optionStr(confFile, "main", "udp_addr", "0.0.0.0:3000"))  == -1)
+    m_imitPlat = Settings::optionSInt32(confFile, "debug", "imit_plat", 0);
+
+    m_dbgLvl = Settings::optionSInt32(confFile, "debug", "debug_level", 0);
+
+    if ( m_nano->init(m_dbgLvl, Settings::optionStr(confFile, "main", "udp_addr", "0.0.0.0:3000"), m_imitPlat)  == -1)
     {
         m_error = m_nano->errMess();
         return -1;
     }
-    if (m_http_server->init(Settings::optionStr(confFile, "main", "http_addr", "127.0.0.1:3000"))  == -1)
+    if (m_http_server->init(m_dbgLvl, Settings::optionStr(confFile, "main", "http_addr", "127.0.0.1:3000"))  == -1)
     {
         m_error = m_http_server->errMess();
         return -1;

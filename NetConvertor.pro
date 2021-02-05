@@ -51,3 +51,4 @@ HEADERS += \
 
 DISTFILES += \
     ../debug/settings.ini
+    ../release/settings.ini

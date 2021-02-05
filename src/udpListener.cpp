@@ -1,5 +1,7 @@
 #include <QtNetwork>
 #include "udpListener.h"
+#include "shared_code.h"
+#include "parameters_datatypes.h"
 
 constexpr quint32 MAX_PORT = 49151;
 constexpr quint32 MIN_PORT = 1024;
@@ -7,14 +9,15 @@ constexpr quint32 MIN_PORT = 1024;
 UdpListener::UdpListener(QObject *parent): QObject(parent)
 {}
 
-int UdpListener::init(QString myAddr) noexcept
+int UdpListener::init(int debugLevel, QString myAddr, int imitTime) noexcept
 {
     m_srcAddr = myAddr;
+    m_imitTime = imitTime;
     myIp = m_ip (m_srcAddr);
     myPort = m_port (m_srcAddr);
+    m_dbgLvl = debugLevel;
     if (m_socket == nullptr)
         m_socket = new QUdpSocket(this);
-
     return m_init();
 }
 
@@ -35,6 +38,27 @@ qint32 UdpListener::sendData(char *data, qint32 size, QString ip, quint16 port)
 
 void UdpListener::receiveData()
 {
+    if (m_imitTime > 0)
+    {
+        st_parameters params;
+
+        params.is_eq = 2;
+        params.is_reg = 5;
+        params.i_a = 101;
+        params.i_b = 102;
+        params.i_c = 103;
+
+        params.v_a = 201;
+        params.v_b = 202;
+        params.v_c = 203;
+
+        m_inBuf.resize(0);
+        m_inBuf.insert(0, (const char*)(&params), sizeof (struct st_parameters));
+
+        emit getData (m_inBuf.data(), m_inBuf.size());
+        return;
+    }
+
     QHostAddress recvIp;
     quint16 recvPort;
     m_inBuf.resize(m_socket->pendingDatagramSize());
@@ -46,19 +70,31 @@ void UdpListener::receiveData()
         qWarning()<<"Error of receiving from' "<<rcvAddr<<"': "<<m_socket->errorString();
         return;
     }
-    //printf("Got %lld bytes from %s\n", lastInSize, rcvAddr.toStdString().c_str() );
+    printf("Got %lld bytes from %s\n", lastInSize, rcvAddr.toStdString().c_str() );
+    fflush(stdout);
     emit getData (m_inBuf.data(), m_inBuf.size());
 
 }
 
 int UdpListener::m_init() noexcept
 {
+    if (m_imitTime > 0)
+    {
+        Printer_print(LOG_WARNING, "Включена имитация");
+        m_UdpImitator = connect( &m_imitTimer,
+                                 &QTimer::timeout,
+                                 this,
+                                 &UdpListener::receiveData);
+        m_imitTimer.start(m_imitTime);
+        return 0;
+    }
+
     if (!m_testAddress (m_srcAddr))
     {
         m_error = "wrong address: " + m_srcAddr;
         return -1;
     }
-    //qDebug()<<"Ip "<< myIp <<"  Port "<< myPort;
+
     QHostAddress myHostAddr (myIp);
     if (!m_socket->bind(myHostAddr, myPort))
     {
@@ -66,6 +102,7 @@ int UdpListener::m_init() noexcept
                 QString::number(myPort) + ": " +m_socket->errorString();
         return -1;
     }
+
     m_Connector = connect(m_socket, &QUdpSocket::readyRead, this, &UdpListener::receiveData);
     if (!m_Connector)
     {

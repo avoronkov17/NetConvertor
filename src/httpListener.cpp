@@ -3,42 +3,51 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QJsonDocument>
-#include <QJsonObject>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QDateTime>
+#include <QCoreApplication>
+#include <QUrlQuery>
 
+#include "shared_code.h"
 #include "httpListener.h"
 
+constexpr int WAIT_UDP = 5000; // сколько ждать данных на udp порту
 
 HttpListener::HttpListener(QObject *parent) : QObject(parent)
 {
-    m_http = new QNetworkAccessManager(this);
 }
 
-int HttpListener::init(QString url) noexcept
+HttpListener::~HttpListener()
 {
+    if ( m_http)
+        delete m_http;
+}
+
+int HttpListener::init(int debugLevel, QString url) noexcept
+{
+    m_dbgLvl = debugLevel;
+    if (m_http == nullptr)
+        m_http = new QNetworkAccessManager();
     m_URL = url;
-    connect(m_http, &QNetworkAccessManager::finished,
-            this, &HttpListener::replyFinished);
+    //connect(m_http, &QNetworkAccessManager::finished,
+    //        this, &HttpListener::m_replyFinished);
 
     connect(&m_timer, &QTimer::timeout, this, &HttpListener::m_timeout );
-    m_timer.start(5000);
+    m_timer.start(WAIT_UDP);
     return 0;
 }
 
-QNetworkRequest HttpListener::createRequest() noexcept
+QNetworkRequest HttpListener::m_createRequest() noexcept
 {
     QUrl url(m_URL);
     QNetworkRequest request;
     request.setUrl(url);
-
-    // Add the headers specifying their names and their values with the following method : void QNetworkRequest::setRawHeader(const QByteArray & headerName, const QByteArray & headerValue);
-    request.setRawHeader("User-Agent", "Net Convertor  v0.1");
     request.setRawHeader("Content-Type", "application/json");
     return request;
 }
 
-QByteArray HttpListener::createPostData(st_parameters params) noexcept
+QByteArray HttpListener::m_postDataRaw(st_parameters params) noexcept
 {
     QDateTime time;
     time = QDateTime::currentDateTime();
@@ -62,91 +71,107 @@ QByteArray HttpListener::createPostData(st_parameters params) noexcept
 
     // Build your JSON string as usual
     QByteArray jsonString = "{\"consumData\": {\"dt\":\"" + timeStr +
-                            "\",\"\nEq\":\"" + eq +
-                            "\",\"\nreg\":\"" +  reg +
-                            "\",\"\nI_A\":\"" +  i_a +
+                            "\",\"Eq\":\"" + eq +
+                            "\",\"reg\":\"" +  reg +
+                            "\",\"I_A\":\"" +  i_a +
                             "\",\"I_B\":\"" +  i_b +
                             "\",\"I_C\":\"" +  i_c +
                             "\",\"V_A\":\"" +  v_a +
                             "\",\"V_B\":\"" +  v_b +
                             "\",\"V_C\":\"" +  v_c +
                             " \"} }";
-
     return jsonString;
+
 }
 
-/*
-POST /consum HTTP/1.1
-Host: 192.168.7.126:3000
-Content-Type: application/json
+QJsonDocument HttpListener::m_postDataJson(st_parameters params) noexcept
+{
+    QDateTime time;
+    time = QDateTime::currentDateTime();
 
- {"consumData":
-     { "dt":"2020-06-28T03:28:00",
-       "Eq":"1",
-       "Reg":"2",
-       "I_A":"1200",
-       "I_B":"1200",
-       "I_C":"1000",
-       "V_A":"1200",
-       "V_B":"0",
-       "V_C":"0"}}
- sscanf_P(str, (const char *)F("%*s %d-%d-%d %d:%d:%d"), &y, &m, &d, &hh, &mm, &ss)
-  */
+    QByteArray timeStr;
+    timeStr.append(time.toString(Qt::DateFormat::ISODate));
+
+    QJsonObject consum;
+    QJsonObject obj;
+    obj["dt"] =  QString(timeStr);
+    obj["Eq"] =  QString::number(params.is_eq);
+    obj["reg"] = QString::number(params.is_reg);
+    obj["I_A"] = QString::number(params.i_a);
+    obj["I_B"] = QString::number(params.i_b);
+    obj["I_C"] = QString::number(params.i_c);
+    obj["V_A"] = QString::number(params.v_a);
+    obj["V_B"] = QString::number(params.v_b);
+    obj["V_C"] = QString::number(params.v_c);
+
+    consum["consumData"] = obj;
+    return QJsonDocument(consum);
+
+    /*   QJsonObject recordObject;
+       QJsonObject consumObj;
+       consumObj.insert("dt", "2021-02-01T12:46:16");
+       consumObj.insert("is_eq", "2");
+       consumObj.insert("reg", "5");
+       consumObj.insert("I_A", "11");
+       consumObj.insert("I_B", "12");
+       consumObj.insert("I_C", "13");
+       consumObj.insert("V_A", "23");
+       consumObj.insert("V_B", "23");
+       consumObj.insert("V_C", "23");
+
+       recordObject.insert("consumData", consumObj);
+       return recordObject;*/
+}
 
 
 int HttpListener::sendDataToServer(struct st_parameters params) noexcept
 {
-    //qWarning()<<"Sending POST to "<<m_URL;
-    QByteArray jsonString = createPostData(params);
-    QByteArray postDataSize = QByteArray::number(jsonString.size());
+    QByteArray jsonString = m_postDataRaw(params);
+    int status = 0;
+    QNetworkRequest request = m_createRequest();
+    QNetworkReply *reply = m_http->post (request, jsonString);
 
-    QNetworkRequest request = createRequest();
-    request.setRawHeader("Content-Length", postDataSize);
-    QNetworkReply *reply = m_http->post(request, jsonString);
+    if (m_dbgLvl >= LOG_INFO)
+        qDebug()<<"String START]"<<jsonString << " [END String]";
 
-    int retCode = 0;
     m_timer.start();
-    connect(reply, &QNetworkReply::finished, this, [this, reply, &retCode] ()
+    connect(reply, &QNetworkReply::finished, this, [this, reply, &status] ()
     {
+        QVariant status_code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+        status = status_code.toInt();
 
         if ( reply->error() == QNetworkReply::NoError )
-        {
-            QJsonObject obj = m_parseReply(reply);
-            qWarning()<<"Got some reply: "<< obj;
-            retCode = 1;
-        }
+            qWarning()<<"Reply ["<<status << "] "<< m_parseReply(reply);
         else
-        {
-            qWarning()<<"Got reply error: "<< reply->errorString();
-            retCode  = -1;
-        }
+            qWarning()<<"Reply error ["<<status <<"] "<< reply->errorString();
     }
     );
-
-    return retCode;
-}
-
-void HttpListener::newControllerData() noexcept
-{
-
+    return status;
 }
 
 void HttpListener::m_timeout() noexcept
 {
-    qWarning()<<"No data from Controller";
+    if (m_dbgLvl >= LOG_NOTICE)
+        qWarning()<<"No data from Controller";
 }
 
-QJsonObject HttpListener::m_parseReply(QNetworkReply *reply) noexcept
+QByteArray HttpListener::m_parseReply(QNetworkReply *reply) noexcept
 {
     QJsonObject jsonObj;
     QJsonDocument jsonDoc;
     QJsonParseError parseError;
-    auto replyText = reply->readAll();
+    QByteArray replyText = reply->readAll();
+
     jsonDoc = QJsonDocument::fromJson(replyText, &parseError);
+    if (jsonDoc.isEmpty())
+    {
+        return replyText;
+    }
+
     if(parseError.error != QJsonParseError::NoError)
     {
-        qDebug() << replyText;
-        qWarning() << "Json parse error: " << parseError.errorString();
+        qWarning() << "Json parse error:\n" << parseError.errorString() << "offset: "<< parseError.offset;
+        qDebug() <<"[Source Reply text START]\n"<< replyText <<"[\n Source Reply text END]";
     }
     else
     {
@@ -155,10 +180,11 @@ QJsonObject HttpListener::m_parseReply(QNetworkReply *reply) noexcept
         else if (jsonDoc.isArray())
             jsonObj["non_field_errors"] = jsonDoc.array();
     }
-    return jsonObj;
+
+    return QJsonDocument(jsonObj).toJson();
 }
 
-void HttpListener::replyFinished() noexcept
+/*void HttpListener::m_replyFinished() noexcept
 {
-
-}
+    qDebug()<< "========================";
+}*/

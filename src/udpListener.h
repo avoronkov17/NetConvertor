@@ -4,6 +4,7 @@
 #include <QUdpSocket>
 #include <QObject>
 #include <QHostAddress>
+#include <QTimer>
 
 class UdpListener: public QObject
 {
@@ -14,7 +15,7 @@ signals:
 public:
     explicit UdpListener(QObject *parent = nullptr);
     ~UdpListener() {};
-    int init(QString myAddr) noexcept;
+    int init(int debugLevel, QString myAddr, int imitTime) noexcept;
     QString errMess() noexcept { return m_error; }
 
 public slots:
@@ -29,12 +30,16 @@ private:
     static quint16 m_port(QString Addr) noexcept;
 
     QByteArray m_inBuf;
+    QTimer m_imitTimer;
     QUdpSocket *m_socket = nullptr;
     QString m_error;
     QString m_srcAddr;
     QString myIp;
     quint16 myPort;
+    int m_imitTime = 0;
+    int m_dbgLvl = 0;
     QMetaObject::Connection m_Connector;
+    QMetaObject::Connection m_UdpImitator;
 };
 
 #endif // LISTENCONTROLLER_H

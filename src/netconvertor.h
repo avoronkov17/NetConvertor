@@ -25,6 +25,8 @@ private:
     UdpListener *m_nano = nullptr;
     HttpListener *m_http_server = nullptr;
     struct  st_parameters m_platData;
+    int m_imitPlat = 0; // имитация работы платы
+    int m_dbgLvl = 0;
 signals:
 
 };
