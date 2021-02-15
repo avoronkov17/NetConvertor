@@ -12,11 +12,27 @@
 #include "shared_code.h"
 #include "httpListener.h"
 
+/*
+Пример  POST запроса: HTTP/1.1
+Host: 192.168.7.126:3000
+Content-Type: application/json
+
+ {"consumData":
+     { "dt":"2020-06-28T03:28:00",
+       "Eq":"1",
+       "Reg":"2",
+       "I_A":"1200",
+       "I_B":"1200",
+       "I_C":"1000",
+       "V_A":"1200",
+       "V_B":"0",
+       "V_C":"0"}}
+  */
+
 constexpr int WAIT_UDP = 5000; // сколько ждать данных на udp порту
 
 HttpListener::HttpListener(QObject *parent) : QObject(parent)
-{
-}
+{}
 
 HttpListener::~HttpListener()
 {
@@ -81,7 +97,6 @@ QByteArray HttpListener::m_postDataRaw(st_parameters params) noexcept
                             "\",\"V_C\":\"" +  v_c +
                             " \"} }";
     return jsonString;
-
 }
 
 QJsonDocument HttpListener::m_postDataJson(st_parameters params) noexcept
@@ -106,21 +121,6 @@ QJsonDocument HttpListener::m_postDataJson(st_parameters params) noexcept
 
     consum["consumData"] = obj;
     return QJsonDocument(consum);
-
-    /*   QJsonObject recordObject;
-       QJsonObject consumObj;
-       consumObj.insert("dt", "2021-02-01T12:46:16");
-       consumObj.insert("is_eq", "2");
-       consumObj.insert("reg", "5");
-       consumObj.insert("I_A", "11");
-       consumObj.insert("I_B", "12");
-       consumObj.insert("I_C", "13");
-       consumObj.insert("V_A", "23");
-       consumObj.insert("V_B", "23");
-       consumObj.insert("V_C", "23");
-
-       recordObject.insert("consumData", consumObj);
-       return recordObject;*/
 }
 
 
