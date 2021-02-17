@@ -95,7 +95,7 @@ QByteArray HttpListener::m_postDataRaw(st_parameters params) noexcept
                             "\",\"V_A\":\"" +  v_a +
                             "\",\"V_B\":\"" +  v_b +
                             "\",\"V_C\":\"" +  v_c +
-                            " \"} }";
+                            "\"} }";
     return jsonString;
 }
 
@@ -132,9 +132,17 @@ int HttpListener::sendDataToServer(struct st_parameters params) noexcept
     QNetworkReply *reply = m_http->post (request, jsonString);
 
     if (m_dbgLvl >= LOG_INFO)
-        qDebug()<<"String START]"<<jsonString << " [END String]";
-
+    {
+        qDebug()<<"Sended POST Request:"    ;
+        qDebug()<<"String START]"<< jsonString << " [END String]";
+    }
     m_timer.start();
+    connect(reply, &QNetworkReply::errorOccurred, this, []()
+    {
+        qDebug()<<"SOme reply error";
+
+    });
+
     connect(reply, &QNetworkReply::finished, this, [this, reply, &status] ()
     {
         QVariant status_code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
