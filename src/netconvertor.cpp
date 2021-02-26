@@ -11,10 +11,11 @@ NetConvertor::NetConvertor(QObject *parent) : QObject(parent)
 qint32 NetConvertor::init(QString confFile) noexcept
 {
     m_imitPlat = Settings::optionSInt32(confFile, "debug", "imit_plat", 0);
-
     m_dbgLvl = Settings::optionSInt32(confFile, "debug", "debug_level", 0);
+    QString udp_addr = Settings::optionStr(confFile, "main", "udp_addr", "0.0.0.0:3000");
+    qint32 nanoPort = Settings::option(confFile, "main", "microcontroller_port", 0).toInt();
 
-    if ( m_nano->init(m_dbgLvl, Settings::optionStr(confFile, "main", "udp_addr", "0.0.0.0:3000"), m_imitPlat)  == -1)
+    if ( m_nano->init(m_dbgLvl, udp_addr,  static_cast<qint16>(nanoPort), m_imitPlat)  == -1)
     {
         m_error = m_nano->errMess();
         return -1;
