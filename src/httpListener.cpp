@@ -29,7 +29,7 @@ Content-Type: application/json
        "V_C":"0"}}
   */
 
-constexpr int WAIT_UDP = 5000; // сколько ждать данных на udp порту
+constexpr int WAIT_UDP = (15 *1000); // сколько ждать данных на udp порту (миллисекунд)
 
 HttpListener::HttpListener(QObject *parent) : QObject(parent)
 {}
@@ -46,9 +46,8 @@ int HttpListener::init(int debugLevel, QString url) noexcept
     if (m_http == nullptr)
         m_http = new QNetworkAccessManager();
     m_URL = url;
-    //connect(m_http, &QNetworkAccessManager::finished,
-    //        this, &HttpListener::m_replyFinished);
 
+    Printer_print(LOG_INFO, "Http server URL: '%s'", m_URL.toStdString().c_str() );
     connect(&m_timer, &QTimer::timeout, this, &HttpListener::m_timeout );
     m_timer.start(WAIT_UDP);
     return 0;
@@ -88,7 +87,7 @@ QByteArray HttpListener::m_postDataRaw(st_parameters params) noexcept
     // Build your JSON string as usual
     QByteArray jsonString = "{\"consumData\": {\"dt\":\"" + timeStr +
                             "\",\"Eq\":\"" + eq +
-                            "\",\"reg\":\"" +  reg +
+                            "\",\"Reg\":\"" +  reg +
                             "\",\"I_A\":\"" +  i_a +
                             "\",\"I_B\":\"" +  i_b +
                             "\",\"I_C\":\"" +  i_c +
@@ -111,7 +110,7 @@ QJsonDocument HttpListener::m_postDataJson(st_parameters params) noexcept
     QJsonObject obj;
     obj["dt"] =  QString(timeStr);
     obj["Eq"] =  QString::number(params.is_eq);
-    obj["reg"] = QString::number(params.is_reg);
+    obj["Reg"] = QString::number(params.is_reg);
     obj["I_A"] = QString::number(params.i_a);
     obj["I_B"] = QString::number(params.i_b);
     obj["I_C"] = QString::number(params.i_c);
@@ -132,16 +131,12 @@ int HttpListener::sendDataToServer(struct st_parameters params) noexcept
     QNetworkReply *reply = m_http->post (request, jsonString);
 
     if (m_dbgLvl >= LOG_INFO)
-    {
-        qDebug()<<"Sended POST Request:"    ;
-        qDebug()<<"String START]"<< jsonString << " [END String]";
-    }
+        Printer_print(LOG_INFO, "Sended POST Request:\n %s", jsonString.toStdString().c_str())  ;
     m_timer.start();
-    connect(reply, &QNetworkReply::errorOccurred, this, []()
+    /*connect(reply, &QNetworkReply::errorOccurred, this, []()
     {
-        qDebug()<<"SOme reply error";
-
-    });
+        qDebug()<<"Reply error";
+    });*/
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, &status] ()
     {
