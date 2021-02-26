@@ -9,13 +9,14 @@ constexpr quint32 MIN_PORT = 1024;
 UdpListener::UdpListener(QObject *parent): QObject(parent)
 {}
 
-int UdpListener::init(int debugLevel, QString myAddr, int imitTime) noexcept
+int UdpListener::init(int debugLevel, QString myAddr, qint16 nano_port,  int imitTime) noexcept
 {
     m_srcAddr = myAddr;
     m_imitTime = imitTime;
-    myIp = m_ip (m_srcAddr);
-    myPort = m_port (m_srcAddr);
+    m_myIp = m_ip (m_srcAddr);
+    m_myPort = m_port (m_srcAddr);
     m_dbgLvl = debugLevel;
+    m_nanoPort = nano_port;
     if (m_socket == nullptr)
         m_socket = new QUdpSocket(this);
     return m_init();
@@ -41,7 +42,6 @@ void UdpListener::receiveData()
     if (m_imitTime > 0)
     {
         st_parameters params;
-
         params.is_eq = 2;
         params.is_reg = 5;
         params.i_a = 101;
@@ -54,7 +54,6 @@ void UdpListener::receiveData()
 
         m_inBuf.resize(0);
         m_inBuf.insert(0, (const char*)(&params), sizeof (struct st_parameters));
-
         emit getData (m_inBuf.data(), m_inBuf.size());
         return;
     }
@@ -72,6 +71,13 @@ void UdpListener::receiveData()
     }
     printf("Got %lld bytes from %s\n", lastInSize, rcvAddr.toStdString().c_str() );
     fflush(stdout);
+
+    // высылаем определённую команду плате
+    char cmd = 14;
+    if (m_nanoPort > 0)
+        m_socket->writeDatagram((const char*)(&cmd), sizeof (cmd), recvIp, m_nanoPort);
+    else
+        m_socket->writeDatagram((const char*)(&cmd), sizeof (cmd), recvIp, recvPort);
     emit getData (m_inBuf.data(), m_inBuf.size());
 
 }
@@ -95,11 +101,11 @@ int UdpListener::m_init() noexcept
         return -1;
     }
 
-    QHostAddress myHostAddr (myIp);
-    if (!m_socket->bind(myHostAddr, myPort))
+    QHostAddress myHostAddr (m_myIp);
+    if (!m_socket->bind(myHostAddr, m_myPort))
     {
         m_error = "Bind: " +
-                QString::number(myPort) + ": " +m_socket->errorString();
+                QString::number(m_myPort) + ": " + m_socket->errorString();
         return -1;
     }
 

@@ -15,7 +15,7 @@ signals:
 public:
     explicit UdpListener(QObject *parent = nullptr);
     ~UdpListener() {};
-    int init(int debugLevel, QString myAddr, int imitTime) noexcept;
+    int init(int debugLevel, QString myAddr, qint16 nano_port, int imitTime) noexcept;
     QString errMess() noexcept { return m_error; }
 
 public slots:
@@ -34,8 +34,9 @@ private:
     QUdpSocket *m_socket = nullptr;
     QString m_error;
     QString m_srcAddr;
-    QString myIp;
-    quint16 myPort;
+    QString m_myIp;
+    quint16 m_myPort;
+    qint16 m_nanoPort;
     int m_imitTime = 0;
     int m_dbgLvl = 0;
     QMetaObject::Connection m_Connector;
