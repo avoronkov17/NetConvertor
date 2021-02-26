@@ -8,6 +8,7 @@
 
 int state = 0;
 
+const char PROG_VER[] = {"1.1.001\n"};
 const QString confFile = "settings.ini";
 
 void stop_work (int sigNum)
@@ -19,7 +20,7 @@ void stop_work (int sigNum)
 int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
-
+    Printer_print (LOG_NOTICE, "Версия программы: %s", PROG_VER);
     struct sigaction sa;
     sa.sa_handler = stop_work;
     sigemptyset(&sa.sa_mask);
