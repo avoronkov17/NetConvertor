@@ -15,12 +15,21 @@ qint32 NetConvertor::init(QString confFile) noexcept
     QString udp_addr = Settings::optionStr(confFile, "main", "udp_addr", "0.0.0.0:3000");
     qint32 nanoPort = Settings::option(confFile, "main", "microcontroller_port", 0).toInt();
 
+    st_HttpSettings httpSettings;
+    httpSettings.serverURL = Settings::optionStr(confFile, "main", "http_addr", "127.0.0.1:3000");
+    httpSettings.dbgLevel = m_dbgLvl;
+    httpSettings.telegramBot = Settings::optionStr(confFile, "telegram", "bot_addr", "");
+    httpSettings.telegramChannel = Settings::optionStr(confFile, "telegram", "channel", "");
+    QString waitTime = Settings::optionStr(confFile, "telegram", "notify_time", "24_h");
+    httpSettings.waitTime = getTimeInSeconds(waitTime);
+
     if ( m_nano->init(m_dbgLvl, udp_addr,  static_cast<qint16>(nanoPort), m_imitPlat)  == -1)
     {
         m_error = m_nano->errMess();
         return -1;
     }
-    if (m_http_server->init(m_dbgLvl, Settings::optionStr(confFile, "main", "http_addr", "127.0.0.1:3000"))  == -1)
+
+    if (m_http_server->init(httpSettings )  == -1)
     {
         m_error = m_http_server->errMess();
         return -1;

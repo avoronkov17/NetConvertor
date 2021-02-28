@@ -11,7 +11,7 @@ class NetConvertor : public QObject
     Q_OBJECT
 public:
     explicit NetConvertor(QObject *parent = nullptr);
-    ~NetConvertor() {};
+    virtual ~NetConvertor() {}
     qint32 init(QString confFile) noexcept;
     void close() noexcept;
     QString errMess() noexcept { return m_error; }

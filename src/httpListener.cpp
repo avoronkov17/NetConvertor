@@ -29,7 +29,14 @@ Content-Type: application/json
        "V_C":"0"}}
   */
 
-constexpr int WAIT_UDP = (15 *1000); // сколько ждать данных на udp порту (миллисекунд)
+
+constexpr int WAIT_UDP_DAY = ( 10 * 1000); // в течение суток нет данных
+//constexpr int WAIT_UDP_DAY = ( 24 * 60 * 60 * 1000); // в течение суток нет данных
+constexpr int WAIT_UDP = (10 * 1000); // сколько ждать данных на udp порту (миллисекунд)
+
+//#define TOKEN "1528549269:AAHnB1Evgi1rL18YTK_9-OK1bo8Ffghkcqc"
+//const QString BotURL = "https://web.telegram.org/#/im?p=@avoronkov_test_chanel";
+//const QString CHANNEL_ADDR = "@avoronkov_test_chanel111";
 
 HttpListener::HttpListener(QObject *parent) : QObject(parent)
 {}
@@ -40,22 +47,45 @@ HttpListener::~HttpListener()
         delete m_http;
 }
 
-int HttpListener::init(int debugLevel, QString url) noexcept
+int HttpListener::init(st_HttpSettings settings) noexcept
 {
-    m_dbgLvl = debugLevel;
+    m_settings = settings;
     if (m_http == nullptr)
         m_http = new QNetworkAccessManager();
-    m_URL = url;
 
-    Printer_print(LOG_INFO, "Http server URL: '%s'", m_URL.toStdString().c_str() );
+    if (m_bot == nullptr)
+        m_bot = new Telegram::Bot(m_settings.telegramBot, true, 500, 4);
+    if ( (m_settings.telegramBot != "") && (m_settings.telegramChannel != "") &&  (m_settings.waitTime > 0))
+        m_isTelegramActive = true;
+
+    if ( m_isTelegramActive)
+    {
+        QString noData = "Проверка связи с программой. \
+                     Уведомления будут прилетать не чаще, чем раз в "
+                     + QString::number( m_settings.waitTime ) + " секунд";
+        m_sendTextToBot(noData);
+        m_waitDay.setInterval(m_settings.waitTime * 1000);
+        m_waitDay.start();
+    }
+    else
+        Printer_print(LOG_WARNING, "Не заданы параметр(ы) telegram бота. Уведомления не будут отправляться!");
+
+    Printer_print(LOG_INFO, "Http server URL: '%s'", settings.serverURL.toStdString().c_str() );
     connect(&m_timer, &QTimer::timeout, this, &HttpListener::m_timeout );
+
+    connect(&m_waitDay, &QTimer::timeout, this, [=]()
+    {
+        QString noData = "Нет данных " + QString::number( m_settings.waitTime) + " секунд";
+        m_sendTextToBot(noData);
+    } );
+
     m_timer.start(WAIT_UDP);
     return 0;
 }
 
 QNetworkRequest HttpListener::m_createRequest() noexcept
 {
-    QUrl url(m_URL);
+    QUrl url(m_settings.serverURL);
     QNetworkRequest request;
     request.setUrl(url);
     request.setRawHeader("Content-Type", "application/json");
@@ -117,7 +147,6 @@ QJsonDocument HttpListener::m_postDataJson(st_parameters params) noexcept
     obj["V_A"] = QString::number(params.v_a);
     obj["V_B"] = QString::number(params.v_b);
     obj["V_C"] = QString::number(params.v_c);
-
     consum["consumData"] = obj;
     return QJsonDocument(consum);
 }
@@ -130,8 +159,10 @@ int HttpListener::sendDataToServer(struct st_parameters params) noexcept
     QNetworkRequest request = m_createRequest();
     QNetworkReply *reply = m_http->post (request, jsonString);
 
-    if (m_dbgLvl >= LOG_INFO)
+    if (m_settings.dbgLevel >= LOG_INFO)
         Printer_print(LOG_INFO, "Sended POST Request:\n %s", jsonString.toStdString().c_str())  ;
+
+    m_waitDay.start();
     m_timer.start();
     /*connect(reply, &QNetworkReply::errorOccurred, this, []()
     {
@@ -154,8 +185,25 @@ int HttpListener::sendDataToServer(struct st_parameters params) noexcept
 
 void HttpListener::m_timeout() noexcept
 {
-    if (m_dbgLvl >= LOG_NOTICE)
+    if (m_settings.dbgLevel >= LOG_NOTICE)
         qWarning()<<"No data from Controller";
+}
+
+void HttpListener::m_sendTextToBot(QString text) noexcept
+{
+    if ( !m_isTelegramActive ) // Телеграм клиент не настроен
+        return;
+    //Telegram::Message message;
+    //message.type = Telegram::Message::TextType;
+    //message.string = text;
+    if ( m_bot->sendMessage( m_settings.telegramChannel, text) == false )
+    {
+        Printer_print(LOG_INFO, "Telegram Bot::sendError");
+        return;
+    }
+    else
+        m_waitDay.start();
+    m_timer.start();
 }
 
 QByteArray HttpListener::m_parseReply(QNetworkReply *reply) noexcept
@@ -186,8 +234,3 @@ QByteArray HttpListener::m_parseReply(QNetworkReply *reply) noexcept
 
     return QJsonDocument(jsonObj).toJson();
 }
-
-/*void HttpListener::m_replyFinished() noexcept
-{
-    qDebug()<< "========================";
-}*/

@@ -23,7 +23,7 @@ OBJECTS_DIR = temp/obj
 MOC_DIR = temp/moc
 INCLUDEPATH +=src/
 
-
+include($$PWD/telegram_lib/QtTelegramBot/QtTelegramBot.pri)
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.

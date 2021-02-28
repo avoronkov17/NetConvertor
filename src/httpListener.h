@@ -4,10 +4,24 @@
 #include <QObject>
 #include <QTimer>
 #include "parameters_datatypes.h"
+#include "qttelegrambot.h"
 
 class QNetworkAccessManager;
 class QNetworkRequest;
 class QNetworkReply;
+
+/**
+ * @brief The st_HttpSettings struct параметры работы http модуля
+ */
+struct st_HttpSettings
+{
+  qint32 dbgLevel = 0; // Уровень отладки
+  QString serverURL = "";  // Адрес сервера с базой
+
+  QString telegramBot = ""; // Имя телеграм бота
+  QString telegramChannel = ""; // Имя телеграм канала
+  quint64 waitTime;
+};
 
 class HttpListener : public QObject
 {
@@ -20,11 +34,10 @@ public:
 
     /**
      * @brief init Инициализация модуля взаимодействия с http сервером.
-     * @param debugLevel Уровень отладочной печати.
-     * @param url url адрес сервера.
+     * @param debugLevel Структура с параметрами работы.
      * @return Возвращает 0 при успешной инициализации и -1 в случае ошибки.
      */
-    int init(int debugLevel, QString url) noexcept;
+    int init(st_HttpSettings settings) noexcept;
 
     /**
      * @brief sendDataToServer Отправляет параметры контроллера на http сервер.
@@ -41,6 +54,7 @@ public:
 
 private slots:
     void m_timeout() noexcept;
+    void m_sendTextToBot(QString text) noexcept;
 private:
 
     /**
@@ -56,15 +70,17 @@ private:
      * @return
      */
     QJsonDocument m_postDataJson(st_parameters params) noexcept;
-    //void m_replyFinished() noexcept;
+
     QNetworkRequest m_createRequest() noexcept;
     QByteArray m_parseReply(QNetworkReply *reply) noexcept;
 
     QNetworkAccessManager *m_http = nullptr;
+    Telegram::Bot *m_bot = nullptr;
     QTimer m_timer;
-    QString m_URL;
+    QTimer m_waitDay;
+    st_HttpSettings m_settings;
     QString m_error;
-    int m_dbgLvl = 0;
+    bool m_isTelegramActive = false;
 };
 
 #endif // HTTP_LISTENER_H
