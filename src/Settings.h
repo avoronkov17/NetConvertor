@@ -5,6 +5,7 @@
 #include <QString>
 #include <QVariant>
 
+quint64 getTimeInSeconds(const QString time) noexcept;
 
 class Settings
 {

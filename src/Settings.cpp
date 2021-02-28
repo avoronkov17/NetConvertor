@@ -9,6 +9,29 @@
 
 std::shared_ptr<Settings> Settings::m_instance;
 
+/**
+ * @brief getTimeInSeconds Парсит строку с временем и возвращает размер в секундах
+ * @param time строка времени вида: 3_s , 44_M, 2_H
+ * @return кол-во секунд или 0, в случае ошибки разбора.
+ */
+quint64 getTimeInSeconds(const QString time) noexcept
+{
+    QStringList sizeStrList = time.split ("_");
+    quint64 seconds = static_cast<quint64>(sizeStrList[0].toInt());
+
+    if (sizeStrList.length () < 2 ) {
+        return 0;
+    }
+    if ((sizeStrList[1] =="s") || ((sizeStrList[1] == "S") ))
+        return seconds;
+    if ((sizeStrList[1] =="m") || ((sizeStrList[1] == "M") ))
+        seconds *= 60;
+    else if ((sizeStrList[1] =="h") || ((sizeStrList[1] == "H") ))
+        seconds *= (60 * 60);
+    else if ((sizeStrList[1] =="d") || ((sizeStrList[1] == "D") ))
+        seconds *= (60 * 60 * 24);
+    return seconds;
+}
 
 // смотрит, есть ли данный файл
 bool Settings::isExist(QString fname)
