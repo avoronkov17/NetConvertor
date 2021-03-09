@@ -8,7 +8,7 @@
 
 int state = 0;
 
-const char PROG_VER[] = {"1.1.001\n"};
+const char PROG_VER[] = {"1.1.002\n"};
 const QString confFile = "settings.ini";
 
 void stop_work (int sigNum)
@@ -38,7 +38,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    NetConvertor convertor;
+    NetConvertor *convertor = new NetConvertor();
+
     QFileInfo checkFile(confFile);
     if (! checkFile.isFile())
     {
@@ -46,10 +47,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if ( convertor.init(confFile) == -1 )
+    if ( convertor->init(confFile) == -1 )
     {
         Printer_print (LOG_ERR, "ControllerNet '%s'",
-                       convertor.errMess().toStdString().c_str());
+                       convertor->errMess().toStdString().c_str());
         return -1;
     }
 
@@ -60,7 +61,8 @@ int main(int argc, char *argv[])
         QThread::msleep(10);
     }
 
-    convertor.close();
+    convertor->close();
+    delete convertor;
     Printer_print (LOG_DEBUG, "Exit from program");
     a.exit();
     return 0;

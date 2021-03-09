@@ -43,8 +43,10 @@ HttpListener::HttpListener(QObject *parent) : QObject(parent)
 
 HttpListener::~HttpListener()
 {
-    if ( m_http)
+    if ( m_http) {
         delete m_http;
+        m_http = nullptr;
+    }
 }
 
 int HttpListener::init(st_HttpSettings settings) noexcept

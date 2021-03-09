@@ -8,6 +8,11 @@ NetConvertor::NetConvertor(QObject *parent) : QObject(parent)
     m_http_server = new HttpListener(this);
 }
 
+NetConvertor::~NetConvertor()
+{
+     delete m_http_server;
+}
+
 qint32 NetConvertor::init(QString confFile) noexcept
 {
     m_imitPlat = Settings::optionSInt32(confFile, "debug", "imit_plat", 0);
