@@ -23,10 +23,10 @@ qint32 NetConvertor::init(QString confFile) noexcept
     st_HttpSettings httpSettings;
     httpSettings.serverURL = Settings::optionStr(confFile, "main", "http_addr", "127.0.0.1:3000");
     httpSettings.dbgLevel = m_dbgLvl;
-    httpSettings.telegramBot = Settings::optionStr(confFile, "telegram", "bot_addr", "");
-    httpSettings.telegramChannel = Settings::optionStr(confFile, "telegram", "channel", "");
+    httpSettings.telegram_TOKEN = Settings::optionStr(confFile, "telegram", "chat_id", "");
+    httpSettings.telegram_ID = Settings::optionStr(confFile, "telegram", "token", "");
     QString waitTime = Settings::optionStr(confFile, "telegram", "notify_time", "24_h");
-    httpSettings.waitTime = getTimeInSeconds(waitTime);
+    httpSettings.telegram_waitTime = getTimeInSeconds(waitTime);
 
     if ( m_nano->init(m_dbgLvl, udp_addr,  static_cast<qint16>(nanoPort), m_imitPlat)  == -1)
     {

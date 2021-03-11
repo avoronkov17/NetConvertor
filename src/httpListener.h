@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QTimer>
 #include "parameters_datatypes.h"
-#include "qttelegrambot.h"
+//#include "qttelegrambot.h"
 
 class QNetworkAccessManager;
 class QNetworkRequest;
@@ -18,9 +18,9 @@ struct st_HttpSettings
   qint32 dbgLevel = 0; // Уровень отладки
   QString serverURL = "";  // Адрес сервера с базой
 
-  QString telegramBot = ""; // Имя телеграм бота
-  QString telegramChannel = ""; // Имя телеграм канала
-  quint64 waitTime;
+  QString telegram_TOKEN = ""; // Имя телеграм бота
+  QString telegram_ID = ""; // Имя телеграм канала
+  quint64 telegram_waitTime;
 };
 
 class HttpListener : public QObject
@@ -54,7 +54,7 @@ public:
 
 private slots:
     void m_timeout() noexcept;
-    void m_sendTextToBot(QString text) noexcept;
+    int m_sendTextToBot(QString text) noexcept;
 private:
 
     /**
@@ -74,10 +74,11 @@ private:
     QNetworkRequest m_createRequest() noexcept;
     QByteArray m_parseReply(QNetworkReply *reply) noexcept;
 
-    QNetworkAccessManager *m_http = nullptr;
-    Telegram::Bot *m_bot = nullptr;
-    QTimer m_timer;
-    QTimer m_waitDay;
+    QNetworkAccessManager *m_httpServer = nullptr;
+    QNetworkAccessManager *m_httptelegram = nullptr;
+    //Telegram::Bot *m_bot = nullptr;
+    QTimer m_waitRegistrator;
+    QTimer m_telegram;
     st_HttpSettings m_settings;
     QString m_error;
     bool m_isTelegramActive = false;

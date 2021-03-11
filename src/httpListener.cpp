@@ -29,59 +29,63 @@ Content-Type: application/json
        "V_C":"0"}}
   */
 
+const QString TELEGRAM_ADDR = "https://api.telegram.org";
 
 constexpr int WAIT_UDP_DAY = ( 10 * 1000); // в течение суток нет данных
 //constexpr int WAIT_UDP_DAY = ( 24 * 60 * 60 * 1000); // в течение суток нет данных
 constexpr int WAIT_UDP = (10 * 1000); // сколько ждать данных на udp порту (миллисекунд)
 
+constexpr int WAIT_TELEGRAM_SERVER_SEC = 3;
 //#define TOKEN "1528549269:AAHnB1Evgi1rL18YTK_9-OK1bo8Ffghkcqc"
 //const QString BotURL = "https://web.telegram.org/#/im?p=@avoronkov_test_chanel";
 //const QString CHANNEL_ADDR = "@avoronkov_test_chanel111";
 
 HttpListener::HttpListener(QObject *parent) : QObject(parent)
-{}
+{
+    m_httpServer = new QNetworkAccessManager();
+    m_httptelegram = new QNetworkAccessManager();
+}
 
 HttpListener::~HttpListener()
 {
-    if ( m_http) {
-        delete m_http;
-        m_http = nullptr;
+    if ( m_httpServer) {
+        delete m_httpServer;
+        m_httpServer = nullptr;
     }
 }
 
 int HttpListener::init(st_HttpSettings settings) noexcept
 {
     m_settings = settings;
-    if (m_http == nullptr)
-        m_http = new QNetworkAccessManager();
-
-    if (m_bot == nullptr)
-        m_bot = new Telegram::Bot(m_settings.telegramBot, true, 500, 4);
-    if ( (m_settings.telegramBot != "") && (m_settings.telegramChannel != "") &&  (m_settings.waitTime > 0))
+    if ( (m_settings.telegram_TOKEN != "") && (m_settings.telegram_ID != "") &&  (m_settings.telegram_waitTime > 0))
         m_isTelegramActive = true;
 
     if ( m_isTelegramActive)
     {
         QString noData = "Проверка связи с программой. \
                      Уведомления будут прилетать не чаще, чем раз в "
-                     + QString::number( m_settings.waitTime ) + " секунд";
-        m_sendTextToBot(noData);
-        m_waitDay.setInterval(m_settings.waitTime * 1000);
-        m_waitDay.start();
+                     + QString::number( m_settings.telegram_waitTime ) + " секунд";
+        if ( m_sendTextToBot( noData) == 1 )
+        {
+            m_telegram.setInterval(m_settings.telegram_waitTime * 1000);
+            m_telegram.start();
+        }
+        else
+            Printer_print(LOG_ERR, "Cannot send text to telegram: timeout" );
     }
     else
         Printer_print(LOG_WARNING, "Не заданы параметр(ы) telegram бота. Уведомления не будут отправляться!");
 
     Printer_print(LOG_INFO, "Http server URL: '%s'", settings.serverURL.toStdString().c_str() );
-    connect(&m_timer, &QTimer::timeout, this, &HttpListener::m_timeout );
+    connect(&m_waitRegistrator, &QTimer::timeout, this, &HttpListener::m_timeout );
 
-    connect(&m_waitDay, &QTimer::timeout, this, [=]()
+    connect(&m_telegram, &QTimer::timeout, this, [=]()
     {
-        QString noData = "Нет данных " + QString::number( m_settings.waitTime) + " секунд";
+        QString noData = "Нет соединения с сервером " + QString::number( m_settings.telegram_waitTime) + " секунд";
         m_sendTextToBot(noData);
     } );
 
-    m_timer.start(WAIT_UDP);
+    m_waitRegistrator.start(WAIT_UDP);
     return 0;
 }
 
@@ -159,17 +163,12 @@ int HttpListener::sendDataToServer(struct st_parameters params) noexcept
     QByteArray jsonString = m_postDataRaw(params);
     int status = 0;
     QNetworkRequest request = m_createRequest();
-    QNetworkReply *reply = m_http->post (request, jsonString);
+    QNetworkReply *reply = m_httpServer->post (request, jsonString);
 
     if (m_settings.dbgLevel >= LOG_INFO)
         Printer_print(LOG_INFO, "Sended POST Request:\n %s", jsonString.toStdString().c_str())  ;
 
-    m_waitDay.start();
-    m_timer.start();
-    /*connect(reply, &QNetworkReply::errorOccurred, this, []()
-    {
-        qDebug()<<"Reply error";
-    });*/
+    m_waitRegistrator.start(); // этого не должно тут быть!
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, &status] ()
     {
@@ -177,7 +176,10 @@ int HttpListener::sendDataToServer(struct st_parameters params) noexcept
         status = status_code.toInt();
 
         if ( reply->error() == QNetworkReply::NoError )
+        {
             qWarning()<<"Reply ["<<status << "] "<< m_parseReply(reply);
+            m_telegram.start();
+        }
         else
             qWarning()<<"Reply error ["<<status <<"] "<< reply->errorString();
     }
@@ -185,27 +187,64 @@ int HttpListener::sendDataToServer(struct st_parameters params) noexcept
     return status;
 }
 
+
 void HttpListener::m_timeout() noexcept
 {
     if (m_settings.dbgLevel >= LOG_NOTICE)
         qWarning()<<"No data from Controller";
 }
 
-void HttpListener::m_sendTextToBot(QString text) noexcept
+int HttpListener::m_sendTextToBot(QString text) noexcept
 {
+    int status = 0;
     if ( !m_isTelegramActive ) // Телеграм клиент не настроен
-        return;
-    //Telegram::Message message;
-    //message.type = Telegram::Message::TextType;
-    //message.string = text;
-    if ( m_bot->sendMessage( m_settings.telegramChannel, text) == false )
     {
-        Printer_print(LOG_INFO, "Telegram Bot::sendError");
-        return;
+        m_error = "Not active";
+        return -1;
     }
+
+    QNetworkRequest request;
+    QUrl url(TELEGRAM_ADDR + "/bot" + m_settings.telegram_TOKEN + "/sendMessage");
+    request.setUrl(url);
+    request.setRawHeader("Content-Type", "application/json");
+
+    QString requestString = "{\"chat_id\": \"" + m_settings.telegram_ID + "\", \"text\": \"" +
+            text + "\", \"disable_notification\": true }";
+
+    QNetworkReply *reply = m_httpServer->post (request, requestString.toUtf8());
+    if (m_settings.dbgLevel >= LOG_INFO)
+        Printer_print(LOG_INFO, "Sended POST Request to Telegram:\n %s", requestString.toStdString().c_str())  ;
+
+    QEventLoop loop;
+    connect(reply, &QNetworkReply::finished, this, [this, reply, &status] ()
+    {
+        QVariant status_code = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+        status = status_code.toInt();
+
+        if ( reply->error() == QNetworkReply::NoError )
+        {
+            qWarning()<<"Reply ["<<status << "] "<< m_parseReply(reply);
+            m_telegram.start();
+            status = 1;
+        }
+        else
+            qWarning()<<"Reply error ["<<status <<"] "<< reply->errorString();
+    }
+    );
+
+    QTimer timer;
+    timer.setSingleShot(true);
+    connect( &timer, &QTimer::timeout, &loop, &QEventLoop::quit );
+    timer.start(WAIT_TELEGRAM_SERVER_SEC * 1000);
+    loop.exec();
+    m_waitRegistrator.start();
+    if(status == 1)
+        return 0;
     else
-        m_waitDay.start();
-    m_timer.start();
+    {
+        m_error = "Server not answer";
+        return -1;
+    }
 }
 
 QByteArray HttpListener::m_parseReply(QNetworkReply *reply) noexcept
